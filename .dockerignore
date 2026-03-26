@@ -1,0 +1,9 @@
+node_modules
+storage
+notas-simples
+descargas
+.env
+.claude
+*.p12
+*.pfx
+.git

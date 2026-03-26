@@ -1,0 +1,314 @@
+<%- include('layout-head') %>
+
+<% if (flash) { %>
+  <div class="alert alert-<%= flash.type %> alert-dismissible fade show">
+    <%= flash.message %>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+<% } %>
+
+<!-- Progress bar (hidden by default, shown via SSE) -->
+<div id="progressPanel" class="card mb-4" style="display: <%= workerStatus.running ? 'block' : 'none' %>;">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0" id="progressTitle">
+        Analizando... <span id="progressCurrent"><%= workerStatus.processed %></span>/<span id="progressTotal"><%= workerStatus.total %></span>
+      </h6>
+      <form method="POST" action="/analyze/cancel" class="d-inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar</button>
+      </form>
+    </div>
+    <div class="progress" style="height: 24px;">
+      <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+        role="progressbar" style="width: <%= workerStatus.total > 0 ? (workerStatus.processed / workerStatus.total * 100) : 0 %>%">
+        <span id="progressPercent"><%= workerStatus.total > 0 ? Math.round(workerStatus.processed / workerStatus.total * 100) : 0 %>%</span>
+      </div>
+    </div>
+    <small class="text-muted mt-1 d-block" id="progressDetail">
+      <span id="progressErrors"><%= workerStatus.errors %></span> errores
+    </small>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="row mb-4">
+  <div class="col-md-3">
+    <div class="card stat-card stat-total">
+      <div class="card-body py-2">
+        <div class="text-muted small">Total</div>
+        <div class="fs-4 fw-bold"><%= stats.total %></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card stat-pending">
+      <div class="card-body py-2">
+        <div class="text-muted small">Pendientes</div>
+        <div class="fs-4 fw-bold"><%= stats.pending + stats.queued %></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card stat-analyzed">
+      <div class="card-body py-2">
+        <div class="text-muted small">Analizados</div>
+        <div class="fs-4 fw-bold"><%= stats.analyzed %></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card stat-error">
+      <div class="card-body py-2">
+        <div class="text-muted small">Errores</div>
+        <div class="fs-4 fw-bold"><%= stats.error %></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Actions -->
+<div class="row mb-4">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Subir documentos</h6>
+        <form method="POST" action="/upload" enctype="multipart/form-data">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="input-group">
+            <input type="file" class="form-control" name="pdfs" accept=".pdf" multiple required>
+            <button type="submit" class="btn btn-primary">Subir</button>
+          </div>
+          <small class="text-muted">Solo PDFs, máx. 20MB por archivo</small>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body d-flex gap-2 align-items-end">
+        <% if (stats.pending > 0 && !workerStatus.running) { %>
+          <form method="POST" action="/analyze" id="analyzeAllForm">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <% documents.filter(d => d.status === 'pending').forEach(d => { %>
+              <input type="hidden" name="documentIds" value="<%= d.id %>">
+            <% }) %>
+            <button type="submit" class="btn btn-success">
+              Analizar pendientes (<%= stats.pending %>)
+            </button>
+          </form>
+        <% } %>
+        <% if (stats.analyzed > 0) { %>
+          <form method="POST" action="/export">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="btn btn-outline-primary">Exportar Excel</button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Documents table -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="mb-0">Documentos</h6>
+    <% if (documents.length > 0 && !workerStatus.running) { %>
+      <form method="POST" action="/analyze" id="analyzeSelectedForm">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div id="selectedIds"></div>
+        <button type="submit" class="btn btn-sm btn-outline-success" id="analyzeSelectedBtn" disabled>
+          Analizar seleccionados
+        </button>
+      </form>
+    <% } %>
+  </div>
+  <div class="card-body p-0">
+    <% if (documents.length === 0) { %>
+      <p class="text-muted text-center py-4">No hay documentos. Sube PDFs para comenzar.</p>
+    <% } else { %>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th><input type="checkbox" id="selectAll"></th>
+              <th>Archivo</th>
+              <th>Tamaño</th>
+              <th>Estado</th>
+              <th>Subido</th>
+              <th>Analizado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% documents.forEach(doc => { %>
+              <tr id="doc-<%= doc.id %>">
+                <td>
+                  <% if (doc.status === 'pending' || doc.status === 'error') { %>
+                    <input type="checkbox" class="doc-checkbox" value="<%= doc.id %>">
+                  <% } %>
+                </td>
+                <td>
+                  <a href="/document/<%= doc.id %>/view" target="_blank" title="Ver PDF">
+                    <%= doc.original_name %>
+                  </a>
+                </td>
+                <td><%= (doc.size / 1024).toFixed(0) %> KB</td>
+                <td>
+                  <% if (doc.status === 'pending') { %>
+                    <span class="badge badge-pending">Pendiente</span>
+                  <% } else if (doc.status === 'queued') { %>
+                    <span class="badge bg-info">En cola</span>
+                  <% } else if (doc.status === 'analyzed') { %>
+                    <span class="badge badge-analyzed">Analizado</span>
+                  <% } else { %>
+                    <span class="badge badge-error" title="<%= doc.error_message %>">Error</span>
+                  <% } %>
+                </td>
+                <td><%= new Date(doc.uploaded_at).toLocaleString('es-ES') %></td>
+                <td><%= doc.analyzed_at ? new Date(doc.analyzed_at).toLocaleString('es-ES') : '—' %></td>
+                <td>
+                  <form method="POST" action="/document/<%= doc.id %>/delete" class="d-inline"
+                    onsubmit="return confirm('¿Eliminar este documento?')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<!-- Export history -->
+<% if (exports.length > 0) { %>
+<div class="card mt-4">
+  <div class="card-header"><h6 class="mb-0">Exportaciones recientes</h6></div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Archivo</th>
+          <th>Documentos</th>
+          <th>Fecha</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% exports.forEach(exp => { %>
+          <tr>
+            <td><%= exp.filename %></td>
+            <td><%= exp.document_count %></td>
+            <td><%= new Date(exp.created_at).toLocaleString('es-ES') %></td>
+            <td><a href="/export/<%= exp.id %>" class="btn btn-sm btn-outline-primary">Descargar</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+<script nonce="<%= cspNonce %>">
+  document.addEventListener('DOMContentLoaded', function() {
+    var selectAll = document.getElementById('selectAll');
+    var analyzeBtn = document.getElementById('analyzeSelectedBtn');
+    var selectedIds = document.getElementById('selectedIds');
+
+    function getCheckboxes() {
+      return document.querySelectorAll('.doc-checkbox');
+    }
+
+    function updateSelected() {
+      if (!selectedIds) return;
+      selectedIds.innerHTML = '';
+      var count = 0;
+      getCheckboxes().forEach(function(cb) {
+        if (cb.checked) {
+          var input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'documentIds';
+          input.value = cb.value;
+          selectedIds.appendChild(input);
+          count++;
+        }
+      });
+      if (analyzeBtn) {
+        analyzeBtn.disabled = count === 0;
+        analyzeBtn.textContent = count > 0 ? 'Analizar seleccionados (' + count + ')' : 'Analizar seleccionados';
+      }
+    }
+
+    document.addEventListener('change', function(e) {
+      if (e.target.classList.contains('doc-checkbox')) {
+        updateSelected();
+      }
+      if (e.target.id === 'selectAll') {
+        var checked = e.target.checked;
+        getCheckboxes().forEach(function(cb) { cb.checked = checked; });
+        updateSelected();
+      }
+    });
+
+    // --- SSE: Progreso en tiempo real ---
+    var progressPanel = document.getElementById('progressPanel');
+    var progressBar = document.getElementById('progressBar');
+    var progressPercent = document.getElementById('progressPercent');
+    var progressCurrent = document.getElementById('progressCurrent');
+    var progressTotal = document.getElementById('progressTotal');
+    var progressErrors = document.getElementById('progressErrors');
+    var progressTitle = document.getElementById('progressTitle');
+
+    var evtSource = new EventSource('/events');
+
+    evtSource.addEventListener('started', function(e) {
+      var data = JSON.parse(e.data);
+      progressPanel.style.display = 'block';
+      progressTotal.textContent = data.total;
+      progressCurrent.textContent = '0';
+      progressBar.style.width = '0%';
+      progressPercent.textContent = '0%';
+      progressErrors.textContent = '0';
+    });
+
+    evtSource.addEventListener('progress', function(e) {
+      var data = JSON.parse(e.data);
+      var pct = Math.round((data.processed + data.errors) / data.total * 100);
+      progressCurrent.textContent = data.processed;
+      progressTotal.textContent = data.total;
+      progressErrors.textContent = data.errors;
+      progressBar.style.width = pct + '%';
+      progressPercent.textContent = pct + '%';
+
+      // Actualizar el estado del documento en la tabla
+      var row = document.getElementById('doc-' + data.id);
+      if (row) {
+        var badge = row.querySelector('.badge');
+        if (badge) {
+          badge.className = 'badge badge-analyzed';
+          badge.textContent = 'Analizado';
+        }
+      }
+    });
+
+    evtSource.addEventListener('completed', function() {
+      progressTitle.innerHTML = 'Análisis completado';
+      progressBar.classList.remove('progress-bar-animated');
+      // Recargar la página después de 2 segundos para ver los resultados
+      setTimeout(function() { location.reload(); }, 2000);
+    });
+
+    evtSource.addEventListener('cancelled', function() {
+      setTimeout(function() { location.reload(); }, 500);
+    });
+
+    evtSource.onerror = function() {
+      // Reconectar silenciosamente (el navegador lo hace automático con SSE)
+    };
+  });
+</script>
+
+<%- include('layout-foot') %>

@@ -1,0 +1,34 @@
+<%- include('layout-head') %>
+
+<div class="row justify-content-center mt-5">
+  <div class="col-md-4">
+    <div class="card shadow">
+      <div class="card-body p-4">
+        <h3 class="card-title text-center mb-4" style="color: #2F5496;">Serrano30</h3>
+        <p class="text-muted text-center mb-4">Gestión de Notas Simples</p>
+
+        <% if (error) { %>
+          <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+
+        <form method="POST" action="/login">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="mb-3">
+            <label for="username" class="form-label">Usuario</label>
+            <input type="text" class="form-control" id="username" name="username" required autocomplete="username">
+          </div>
+
+          <div class="mb-3">
+            <label for="password" class="form-label">Contraseña</label>
+            <input type="password" class="form-control" id="password" name="password" required autocomplete="current-password">
+          </div>
+
+          <button type="submit" class="btn w-100 text-white" style="background-color: #2F5496;">Iniciar sesión</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('layout-foot') %>

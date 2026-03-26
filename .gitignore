@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.p12
+*.pfx
+descargas/
+notas-simples/*.pdf
+notas-simples/resultado.xlsx
+storage/
+.claude/
