@@ -8,6 +8,7 @@ const { generateNonce, helmetMiddleware, generalLimiter, csrfProtection } = requ
 const { requireAuth } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const documentRoutes = require('./routes/documents');
+const scraperRoutes = require('./routes/scraper');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,8 +57,12 @@ app.use(csrfProtection);
 // Rutas públicas
 app.use(authRoutes);
 
+// Redirect raíz
+app.get('/', requireAuth, (_req, res) => res.redirect('/analisis'));
+
 // Rutas protegidas
 app.use(requireAuth, documentRoutes);
+app.use(requireAuth, scraperRoutes);
 
 // Error handler para multer
 app.use((err, _req, res, next) => {

@@ -52,7 +52,7 @@ function isPdfFile(filePath) {
 }
 
 // --- DASHBOARD ---
-router.get('/', (req, res) => {
+router.get('/analisis', (req, res) => {
   const documents = db.prepare(`
     SELECT d.*, ar.id as result_id
     FROM documents d
@@ -77,19 +77,19 @@ router.get('/', (req, res) => {
 
   const workerStatus = worker.getStatus();
 
-  res.render('dashboard', { title: 'Dashboard', documents, exports, stats, flash, workerStatus });
+  res.render('dashboard', { title: 'Análisis', documents, exports, stats, flash, workerStatus, activeTab: 'analisis' });
 });
 
 // --- SUBIR PDFs ---
 router.post('/upload', upload.array('pdfs', 50), (req, res) => {
   if (!validateCsrf(req)) {
     (req.files || []).forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
-    return res.redirect('/');
+    return res.redirect('/analisis');
   }
 
   if (!req.files || req.files.length === 0) {
     req.session.flash = { type: 'danger', message: 'No se seleccionaron archivos.' };
-    return res.redirect('/');
+    return res.redirect('/analisis');
   }
 
   const insert = db.prepare(`
@@ -113,7 +113,7 @@ router.post('/upload', upload.array('pdfs', 50), (req, res) => {
   if (rejected > 0) message += ` ${rejected} rechazado(s) por no ser PDF válido.`;
 
   req.session.flash = { type: uploaded > 0 ? 'success' : 'danger', message };
-  res.redirect('/');
+  res.redirect('/analisis');
 });
 
 // --- ANALIZAR DOCUMENTOS (background) ---
@@ -121,7 +121,7 @@ router.post('/analyze', (req, res) => {
   const ids = req.body.documentIds;
   if (!ids || ids.length === 0) {
     req.session.flash = { type: 'warning', message: 'No se seleccionaron documentos para analizar.' };
-    return res.redirect('/');
+    return res.redirect('/analisis');
   }
 
   const idList = Array.isArray(ids) ? ids.map(Number) : [Number(ids)];
@@ -131,14 +131,14 @@ router.post('/analyze', (req, res) => {
     type: 'info',
     message: `${queued} documento(s) en cola de análisis. El progreso se muestra en tiempo real.`,
   };
-  res.redirect('/');
+  res.redirect('/analisis');
 });
 
 // --- CANCELAR ANÁLISIS ---
 router.post('/analyze/cancel', (req, res) => {
   worker.cancelProcessing();
   req.session.flash = { type: 'warning', message: 'Análisis cancelado.' };
-  res.redirect('/');
+  res.redirect('/analisis');
 });
 
 // --- SSE: PROGRESO EN TIEMPO REAL ---
@@ -172,7 +172,7 @@ router.post('/export', (req, res) => {
 
   if (results.length === 0) {
     req.session.flash = { type: 'warning', message: 'No hay resultados de análisis para exportar.' };
-    return res.redirect('/');
+    return res.redirect('/analisis');
   }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -186,7 +186,7 @@ router.post('/export', (req, res) => {
     })
     .catch((error) => {
       req.session.flash = { type: 'danger', message: `Error al generar Excel: ${error.message}` };
-      res.redirect('/');
+      res.redirect('/analisis');
     });
 });
 
@@ -222,7 +222,7 @@ router.post('/document/:id/delete', (req, res) => {
   const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(req.params.id);
   if (!doc) {
     req.session.flash = { type: 'danger', message: 'Documento no encontrado.' };
-    return res.redirect('/');
+    return res.redirect('/analisis');
   }
 
   [path.join(UPLOADS_DIR, doc.filename), path.join(PROCESSED_DIR, doc.filename)].forEach((p) => {
@@ -232,7 +232,7 @@ router.post('/document/:id/delete', (req, res) => {
   db.prepare('DELETE FROM documents WHERE id = ?').run(doc.id);
 
   req.session.flash = { type: 'success', message: `"${doc.original_name}" eliminado.` };
-  res.redirect('/');
+  res.redirect('/analisis');
 });
 
 module.exports = router;
