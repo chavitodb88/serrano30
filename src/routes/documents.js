@@ -235,4 +235,23 @@ router.post('/document/:id/delete', (req, res) => {
   res.redirect('/analisis');
 });
 
+// --- CLEAR ALL DOCUMENTS ---
+router.post('/documents/clear', (req, res) => {
+  // Delete all files
+  for (const dir of [UPLOADS_DIR, PROCESSED_DIR, EXPORTS_DIR]) {
+    if (fs.existsSync(dir)) {
+      for (const file of fs.readdirSync(dir)) {
+        fs.unlinkSync(path.join(dir, file));
+      }
+    }
+  }
+  // Clear DB tables (order matters for FK)
+  db.prepare('DELETE FROM analysis_results').run();
+  db.prepare('DELETE FROM exports').run();
+  db.prepare('DELETE FROM documents').run();
+
+  req.session.flash = { type: 'success', message: 'Todos los documentos, análisis y exports han sido borrados.' };
+  res.redirect('/analisis');
+});
+
 module.exports = router;
