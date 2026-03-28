@@ -1,20 +1,25 @@
 {
   "name": "serrano30",
-  "version": "1.0.0",
-  "main": "src/app.js",
+  "version": "1.0.2",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node src/app.js",
     "dev": "node --watch src/app.js",
     "download": "node src/download-notas.js",
     "analyze": "node src/analyze-notas.js",
+    "electron": "electron .",
+    "electron:dev": "cross-env NODE_ENV=development electron .",
+    "dist:win": "electron-builder --win --x64",
+    "dist:mac": "electron-builder --mac",
+    "postinstall": "electron-builder install-app-deps",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Serrano30 - Analisis de Notas Simples del Registro de la Propiedad",
   "dependencies": {
-    "bcrypt": "^6.0.0",
+    "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.9.1",
     "dotenv": "^17.3.1",
     "ejs": "^3.1.10",
@@ -26,7 +31,47 @@
     "multer": "^2.1.1",
     "openai": "^6.29.0",
     "pdf-parse": "^1.1.1",
-    "playwright": "^1.58.2",
     "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.serrano30.app",
+    "productName": "Serrano30",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "!src/download-notas.js",
+      "!src/analyze-notas.js",
+      "node_modules/**/*",
+      "!node_modules/playwright/**",
+      "!node_modules/playwright-core/**"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    },
+    "extraResources": [
+      {
+        "from": ".env.example",
+        "to": ".env.example"
+      }
+    ]
   }
 }
