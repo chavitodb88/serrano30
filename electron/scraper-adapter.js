@@ -53,6 +53,22 @@ function emit(event, data) {
       state.currentRef = data.ref;
       state.message = `Descargado: ${data.ref}`;
       notifyListeners('downloaded', data);
+      // Save metadata to DB
+      try {
+        const db = require('../src/config/database');
+        const upsert = db.prepare(`
+          INSERT INTO scraper_downloads (codigo, referencia, registro, solicitante, fecha_creacion, fecha_respuesta, importe, filename)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(codigo) DO UPDATE SET
+            referencia=excluded.referencia, registro=excluded.registro, solicitante=excluded.solicitante,
+            fecha_creacion=excluded.fecha_creacion, fecha_respuesta=excluded.fecha_respuesta,
+            importe=excluded.importe, filename=excluded.filename, downloaded_at=CURRENT_TIMESTAMP
+        `);
+        upsert.run(data.ref, data.referencia || null, data.registro || null, data.solicitante || null,
+          data.fechaCreacion || null, data.fechaRespuesta || null, data.importe || null, data.file || null);
+      } catch (e) {
+        console.error('[scraper-adapter] Error saving metadata:', e.message);
+      }
       break;
     case 'completed':
       state.running = false;
@@ -81,7 +97,7 @@ function emit(event, data) {
   }
 }
 
-function startScraper() {
+function startScraper(filters = {}) {
   if (state.running) return false;
 
   state.running = true;
@@ -93,7 +109,7 @@ function startScraper() {
 
   notifyListeners('started', getStatus());
 
-  scraperInstance = new ScraperWindow(emit);
+  scraperInstance = new ScraperWindow(emit, filters);
   scraperInstance.start();
 
   return true;

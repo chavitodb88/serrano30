@@ -51,8 +51,9 @@ async function waitForSelector(win, selector, timeout = 15000) {
 }
 
 class ScraperWindow {
-  constructor(emitFn) {
+  constructor(emitFn, filters = {}) {
     this.emit = emitFn;
+    this.filters = filters;
     this.win = null;
     this.stopRequested = false;
     this.downloaded = {};
@@ -115,6 +116,11 @@ class ScraperWindow {
       }
     });
 
+    // Forward renderer console to main process
+    this.win.webContents.on('console-message', (e, level, message) => {
+      console.log('[scraper-page]', message);
+    });
+
     // Log navigations for debugging
     this.win.webContents.on('did-navigate', (e, url) => {
       console.log('[scraper] Navigated to:', url);
@@ -141,6 +147,42 @@ class ScraperWindow {
 
   stop() {
     this.stopRequested = true;
+  }
+
+  _buildFilterUrl() {
+    const params = new URLSearchParams({
+      periodSelected: 'rango',
+      month: '0',
+      year: new Date().getFullYear().toString(),
+      completeYear: new Date().getFullYear().toString(),
+      fromDate: this.filters.fechaDesde || '',
+      toDate: this.filters.fechaHasta || '',
+      publicId: '',
+      reference: this.filters.referencia || '',
+      serviceType: '',
+      requestStatus: 'RESPONDIDA',
+      requesterId: '',
+    });
+    return `${BASE_URL}/site/usuario/solicitudes/listado?${params.toString()}`;
+  }
+
+  async _applyFilters(win) {
+    const filterUrl = this._buildFilterUrl();
+    await win.loadURL(filterUrl);
+    await sleep(3000);
+    await waitForSelector(win, 'table').catch(() => {});
+
+    // Log how many results after filtering
+    const count = await executeJS(win, `
+      (function() {
+        const text = document.body.textContent;
+        const match = text.match(/(\\d[\\d.]*)\\s*solicitud/);
+        return match ? match[1] : '?';
+      })()
+    `).catch(() => '?');
+
+    this.emit('phase', { phase: 'filtered', message: 'Filtrado: ' + count + ' solicitudes' });
+    await sleep(1000);
   }
 
   async _run() {
@@ -247,8 +289,23 @@ class ScraperWindow {
       this.emit('error', { message: 'No se pudo acceder al listado de solicitudes. Puede requerirse certificado digital.' });
     });
 
+    // --- 3. APPLY FILTERS ---
+    this.emit('phase', { phase: 'filtering', message: 'Aplicando filtros...' });
+    await this._applyFilters(win);
+
     // --- 4. DOWNLOAD ANSWERED NOTES ---
     this.emit('phase', { phase: 'downloading', message: 'Iniciando descarga...' });
+
+    // Use the current (filtered) URL as base for pagination
+    const filteredBaseUrl = win.webContents.getURL().split('?')[0];
+    const filteredParams = new URL(win.webContents.getURL()).searchParams;
+    const buildPageUrl = (page) => {
+      filteredParams.set('order', 'desc');
+      filteredParams.set('orderBy', 'id');
+      filteredParams.set('pageSize', '10');
+      filteredParams.set('page', page.toString());
+      return `${filteredBaseUrl}?${filteredParams.toString()}`;
+    };
 
     let currentPage = 1;
     let totalDownloaded = 0;
@@ -267,15 +324,24 @@ class ScraperWindow {
             const link = cells[0].querySelector('a');
             const estado = cells[4] ? cells[4].textContent.trim() : '';
             if (!link || !estado.includes('Respondida')) return null;
+            const cellText = cells[0].textContent.trim().split('\\n').map(s => s.trim()).filter(Boolean);
+            const regText = cells[1].textContent.trim().split('\\n').map(s => s.trim()).filter(Boolean);
             return {
-              refCode: link.textContent.trim().split('\\n')[0].trim(),
+              refCode: cellText[0] || '',
+              referencia: cellText[1] || '',
+              registro: regText[1] || regText[0] || '',
+              solicitante: cells[2] ? cells[2].textContent.trim() : '',
+              fechaCreacion: cells[3] ? cells[3].textContent.trim().replace('\\n', ' ') : '',
+              fechaRespuesta: (estado.match(/\\d{2}\\/\\d{2}\\/\\d{4}\\s+\\d{2}:\\d{2}/) || [''])[0],
+              importe: cells[5] ? cells[5].textContent.trim() : '',
               href: link.getAttribute('href'),
             };
           }).filter(Boolean);
         })()
       `);
 
-      for (const { refCode, href } of rowsData) {
+      for (const row of rowsData) {
+        const { refCode, referencia, registro, solicitante, fechaCreacion, fechaRespuesta, importe, href } = row;
         if (this.stopRequested) break;
 
         if (this.downloaded[refCode]) {
@@ -309,14 +375,18 @@ class ScraperWindow {
         `);
 
         if (!downloadInfo.found) {
-          await win.loadURL(`${LISTADO_URL}?order=desc&orderBy=id&pageSize=10&page=${currentPage}`);
+          await win.loadURL(buildPageUrl(currentPage));
           await waitForSelector(win, 'table');
           continue;
         }
 
-        // Try to download the PDF
+        // Try to download the PDF — organize by referencia folder
+        const refFolder = referencia
+          ? path.join(DOWNLOAD_DIR, referencia.replace(/[<>:"/\\|?*]/g, '_'))
+          : DOWNLOAD_DIR;
+        if (!fs.existsSync(refFolder)) fs.mkdirSync(refFolder, { recursive: true });
         const fileName = `${refCode}.pdf`;
-        const filePath = path.join(DOWNLOAD_DIR, fileName);
+        const filePath = path.join(refFolder, fileName);
 
         let downloadedFile = false;
 
@@ -393,12 +463,12 @@ class ScraperWindow {
           this.downloaded[refCode] = { date: new Date().toISOString(), file: fileName };
           fs.writeFileSync(this.logFile, JSON.stringify(this.downloaded, null, 2));
           totalDownloaded++;
-          this.emit('downloaded', { ref: refCode, file: fileName, total: totalDownloaded });
+          this.emit('downloaded', { ref: refCode, file: fileName, total: totalDownloaded, referencia, registro, solicitante, fechaCreacion, fechaRespuesta, importe });
         }
 
         // Go back to list
         await win.loadURL(
-          `${LISTADO_URL}?order=desc&orderBy=id&pageSize=10&page=${currentPage}`
+          buildPageUrl(currentPage)
         );
         await waitForSelector(win, 'table');
       }
@@ -424,7 +494,7 @@ class ScraperWindow {
       if (hasNext && (MAX_PAGES === 0 || currentPage < MAX_PAGES)) {
         currentPage++;
         await win.loadURL(
-          `${LISTADO_URL}?order=desc&orderBy=id&pageSize=10&page=${currentPage}`
+          buildPageUrl(currentPage)
         );
         await waitForSelector(win, 'table');
       } else {

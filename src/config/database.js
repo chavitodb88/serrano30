@@ -54,6 +54,19 @@ db.exec(`
     document_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS scraper_downloads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT NOT NULL UNIQUE,
+    referencia TEXT,
+    registro TEXT,
+    solicitante TEXT,
+    fecha_creacion TEXT,
+    fecha_respuesta TEXT,
+    importe TEXT,
+    filename TEXT,
+    downloaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 module.exports = db;
