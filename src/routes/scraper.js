@@ -3,12 +3,16 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
-const scraper = require('../services/scraper');
+const scraper = process.versions.electron
+  ? require('../../electron/scraper-adapter')
+  : require('../services/scraper');
 
 const router = express.Router();
 
-const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || path.join(__dirname, '../../descargas');
-const UPLOADS_DIR = path.join(__dirname, '../../storage/uploads');
+const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || (process.versions.electron
+  ? path.join(process.env.STORAGE_DIR || path.join(__dirname, '../../storage'), 'descargas')
+  : path.join(__dirname, '../../descargas'));
+const UPLOADS_DIR = path.join(process.env.STORAGE_DIR || path.join(__dirname, '../../storage'), 'uploads');
 
 // Validate PDF magic bytes
 function isPdfFile(filePath) {

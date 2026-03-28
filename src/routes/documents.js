@@ -18,7 +18,7 @@ function validateCsrf(req) {
   return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(sessionToken));
 }
 
-const STORAGE_DIR = path.join(__dirname, '../../storage');
+const STORAGE_DIR = process.env.STORAGE_DIR || path.join(__dirname, '../../storage');
 const UPLOADS_DIR = path.join(STORAGE_DIR, 'uploads');
 const PROCESSED_DIR = path.join(STORAGE_DIR, 'processed');
 const EXPORTS_DIR = path.join(STORAGE_DIR, 'exports');

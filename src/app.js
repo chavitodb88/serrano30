@@ -1,4 +1,6 @@
-require('dotenv').config();
+if (!process.versions.electron) {
+  require('dotenv').config();
+}
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
@@ -9,12 +11,13 @@ const { requireAuth } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const documentRoutes = require('./routes/documents');
 const scraperRoutes = require('./routes/scraper');
+const settingsRoutes = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Validar configuración mínima
-if (!process.env.ADMIN_USER || !process.env.ADMIN_PASSWORD) {
+// Validar configuración mínima (skip in Electron — defaults are set in electron/main.js)
+if (!process.versions.electron && (!process.env.ADMIN_USER || !process.env.ADMIN_PASSWORD)) {
   console.error('ERROR: ADMIN_USER y ADMIN_PASSWORD deben estar configurados en .env');
   process.exit(1);
 }
@@ -63,6 +66,7 @@ app.get('/', requireAuth, (_req, res) => res.redirect('/analisis'));
 // Rutas protegidas
 app.use(requireAuth, documentRoutes);
 app.use(requireAuth, scraperRoutes);
+app.use(requireAuth, settingsRoutes);
 
 // Error handler para multer
 app.use((err, _req, res, next) => {
@@ -86,6 +90,10 @@ app.use((_req, res) => {
   res.status(404).render('error', { title: 'No encontrado', message: 'Página no encontrada.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Serrano30 escuchando en http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Serrano30 escuchando en http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

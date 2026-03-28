@@ -3,7 +3,7 @@ const fs = require('fs');
 const db = require('../config/database');
 const { extractTextFromPdf, analyzeWithGpt } = require('./analyzer');
 
-const STORAGE_DIR = path.join(__dirname, '../../storage');
+const STORAGE_DIR = process.env.STORAGE_DIR || path.join(__dirname, '../../storage');
 const UPLOADS_DIR = path.join(STORAGE_DIR, 'uploads');
 const PROCESSED_DIR = path.join(STORAGE_DIR, 'processed');
 
