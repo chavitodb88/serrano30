@@ -6,6 +6,7 @@ descargas/
 notas-simples/*.pdf
 notas-simples/resultado.xlsx
 storage/
+dist/
 .claude/
 CLAUDE.md
 DEPLOY-EASYPANEL.md

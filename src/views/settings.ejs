@@ -1,0 +1,67 @@
+<%- include('layout-head') %>
+
+<% if (flash) { %>
+  <div class="alert alert-<%= flash.type %> alert-dismissible fade show">
+    <%= flash.message %>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+<% } %>
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h4 class="mb-4">Configuracion</h4>
+
+    <form method="POST" action="/settings">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="card mb-4">
+        <div class="card-header"><strong>API de OpenAI</strong></div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label for="openaiKey" class="form-label">API Key</label>
+            <div class="input-group">
+              <input type="password" class="form-control" id="openaiKey" name="openai_key"
+                value="<%= settings.openaiKey %>" placeholder="sk-...">
+              <button class="btn btn-outline-secondary" type="button" onclick="toggleKey(this)">Mostrar</button>
+            </div>
+            <div class="form-text">Necesaria para el analisis de notas simples con GPT.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header"><strong>Credenciales de acceso</strong></div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label for="adminUser" class="form-label">Usuario</label>
+            <input type="text" class="form-control" id="adminUser" name="admin_user"
+              value="<%= settings.adminUser %>">
+          </div>
+          <div class="mb-3">
+            <label for="adminPass" class="form-label">Nueva contrasena</label>
+            <input type="password" class="form-control" id="adminPass" name="admin_password"
+              placeholder="Dejar vacio para no cambiar">
+            <div class="form-text">Solo rellena si quieres cambiar la contrasena actual.</div>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Guardar</button>
+    </form>
+  </div>
+</div>
+
+<script nonce="<%= cspNonce %>">
+function toggleKey(btn) {
+  const input = document.getElementById('openaiKey');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = 'Ocultar';
+  } else {
+    input.type = 'password';
+    btn.textContent = 'Mostrar';
+  }
+}
+</script>
+
+<%- include('layout-foot') %>

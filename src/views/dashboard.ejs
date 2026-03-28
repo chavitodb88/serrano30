@@ -104,6 +104,12 @@
             <button type="submit" class="btn btn-outline-primary">Exportar Excel</button>
           </form>
         <% } %>
+        <% if (stats.total > 0 && !workerStatus.running) { %>
+          <form method="POST" action="/documents/clear" id="clearDocsForm">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="btn btn-outline-danger">Borrar todo</button>
+          </form>
+        <% } %>
       </div>
     </div>
   </div>
@@ -308,6 +314,15 @@
     evtSource.onerror = function() {
       // Reconectar silenciosamente (el navegador lo hace automático con SSE)
     };
+
+    var clearDocsForm = document.getElementById('clearDocsForm');
+    if (clearDocsForm) {
+      clearDocsForm.addEventListener('submit', function(e) {
+        if (!confirm('Borrar TODOS los documentos, análisis y exports?')) {
+          e.preventDefault();
+        }
+      });
+    }
   });
 </script>
 

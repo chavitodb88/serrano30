@@ -2,7 +2,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const STORAGE_DIR = path.join(__dirname, '../../storage');
+const STORAGE_DIR = process.env.STORAGE_DIR || path.join(__dirname, '../../storage');
 const DB_PATH = path.join(STORAGE_DIR, 'data.db');
 
 // Crear directorios de storage si no existen
@@ -53,6 +53,19 @@ db.exec(`
     filename TEXT NOT NULL,
     document_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS scraper_downloads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT NOT NULL UNIQUE,
+    referencia TEXT,
+    registro TEXT,
+    solicitante TEXT,
+    fecha_creacion TEXT,
+    fecha_respuesta TEXT,
+    importe TEXT,
+    filename TEXT,
+    downloaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
