@@ -1,6 +1,6 @@
 {
   "name": "serrano30",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "main": "electron/main.js",
   "scripts": {
     "start": "node src/app.js",
