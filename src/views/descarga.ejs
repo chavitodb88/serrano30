@@ -14,12 +14,76 @@
       <h5 class="card-title mb-0">Descarga automática</h5>
       <div class="d-flex gap-2">
         <% if (!scraperStatus.running) { %>
-          <form method="POST" action="/descarga/start">
+          <form method="POST" action="/descarga/start" id="startForm">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button type="submit" class="btn btn-success">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play-fill me-1" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393"/></svg>
-              Iniciar descarga
-            </button>
+            <div class="d-flex gap-2 align-items-center">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#scraperFilters">
+                Filtros
+              </button>
+              <button type="submit" class="btn btn-success">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play-fill me-1" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393"/></svg>
+                Iniciar descarga
+              </button>
+            </div>
+            <div class="collapse mt-3" id="scraperFilters">
+              <div class="row g-2">
+                <div class="col-md-3">
+                  <label class="form-label small">Tipo de solicitud</label>
+                  <select name="tipo_solicitud" class="form-select form-select-sm">
+                    <option value="">Todas</option>
+                    <option>Nota simple</option>
+                    <option>Nota de localización</option>
+                    <option>Nota online</option>
+                    <option>Nota online notarial</option>
+                    <option>Nota de localización de prestamistas habituales</option>
+                    <option>Nota de localización de titular registral</option>
+                    <option>Certificación de dominio</option>
+                    <option>Certificación de dominio y cargas</option>
+                    <option>Certificación literal</option>
+                    <option>Certificación negativa</option>
+                    <option>Certificación de localización de la Ley 12/2023 por el derecho a la vivienda</option>
+                    <option>Nota informativa mercantil</option>
+                    <option>Depósito de cuentas</option>
+                    <option>Certificación de un cargo determinado</option>
+                    <option>Certificación de vigencia y cargos</option>
+                    <option>Certificación para la emisión de certificado electrónico de representante de persona jurídica</option>
+                    <option>Certificación de estatutos sociales</option>
+                    <option>Certificación de reglamento de junta</option>
+                    <option>Certificación de reglamento de consejo</option>
+                    <option>Certificación de facultades del consejero delegado</option>
+                    <option>Certificación de pactos parasociales</option>
+                    <option>Certificación de poderes</option>
+                    <option>Nota informativa de inscripción</option>
+                    <option>Nota informativa de libros legalizados</option>
+                    <option>Nota Informativa de administradores, cargos y apoderados</option>
+                    <option>Listado de sociedades de representante</option>
+                    <option>Nota informativa mercantil con acceso a las inscripciones en imagen</option>
+                    <option>Información de los libros mercantiles en imagen</option>
+                    <option>Traducción nota simple</option>
+                    <option>Informe de pronóstico de viabilidad para planes de reestructuración</option>
+                    <option>Nota simple informativa RBM</option>
+                    <option>Nota simple informativa RBM negativa</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small">Buscar por referencia</label>
+                  <input type="text" name="referencia" class="form-control form-control-sm" placeholder="Ej: BELLOTA">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small">Fecha desde</label>
+                  <input type="date" name="fecha_desde" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small">Fecha hasta</label>
+                  <input type="date" name="fecha_hasta" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small">Usuario</label>
+                  <input type="text" name="usuario" class="form-control form-control-sm" placeholder="Nombre del solicitante">
+                </div>
+              </div>
+              <p class="text-muted small mt-2 mb-0">Siempre se filtra por estado "Respondida". Los filtros se aplican en la web de registradores antes de descargar.</p>
+            </div>
           </form>
         <% } else { %>
           <form method="POST" action="/descarga/stop">
@@ -54,18 +118,42 @@
   </div>
 </div>
 
+<!-- Filter bar -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="GET" action="/descarga" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <input type="text" name="ref" class="form-control form-control-sm" placeholder="Filtrar por referencia" value="<%= typeof filterRef !== 'undefined' ? filterRef : '' %>">
+      </div>
+      <div class="col-auto">
+        <input type="text" name="reg" class="form-control form-control-sm" placeholder="Filtrar por registro" value="<%= typeof filterReg !== 'undefined' ? filterReg : '' %>">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Filtrar</button>
+        <a href="/descarga" class="btn btn-sm btn-link">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Downloaded files -->
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
     <h6 class="mb-0">Archivos descargados (<%= files.length %>)</h6>
     <% if (files.length > 0) { %>
-      <form method="POST" action="/descarga/import" id="importForm">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <div id="importFileInputs"></div>
-        <button type="submit" class="btn btn-sm btn-outline-primary" id="importBtn" disabled>
-          Importar a Análisis
-        </button>
-      </form>
+      <div class="d-flex gap-2">
+        <form method="POST" action="/descarga/import" id="importForm">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div id="importFileInputs"></div>
+          <button type="submit" class="btn btn-sm btn-outline-primary" id="importBtn" disabled>
+            Importar a Análisis
+          </button>
+        </form>
+        <form method="POST" action="/descarga/clear" id="clearForm">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Borrar todo</button>
+        </form>
+      </div>
     <% } %>
   </div>
   <div class="card-body p-0">
@@ -77,18 +165,24 @@
           <thead class="table-light">
             <tr>
               <th><input type="checkbox" id="selectAllFiles"></th>
-              <th>Archivo</th>
-              <th>Tamaño</th>
-              <th>Fecha descarga</th>
+              <th>Codigo</th>
+              <th>Referencia</th>
+              <th>Registro</th>
+              <th>Solicitante</th>
+              <th>Tam.</th>
+              <th>Fecha</th>
             </tr>
           </thead>
           <tbody>
             <% files.forEach(file => { %>
               <tr>
-                <td><input type="checkbox" class="file-checkbox" value="<%= file.name %>"></td>
-                <td><%= file.name %></td>
-                <td><%= (file.size / 1024).toFixed(0) %> KB</td>
-                <td><%= new Date(file.date).toLocaleString('es-ES') %></td>
+                <td><input type="checkbox" class="file-checkbox" value="<%= file.relativePath %>"></td>
+                <td><small><%= file.codigo %></small></td>
+                <td><%= file.referencia || '' %></td>
+                <td><%= file.registro || '' %></td>
+                <td><small><%= file.solicitante || '' %></small></td>
+                <td><small><%= (file.size / 1024).toFixed(0) %> KB</small></td>
+                <td><small><%= file.fechaCreacion || new Date(file.date).toLocaleDateString('es-ES') %></small></td>
               </tr>
             <% }) %>
           </tbody>
@@ -202,6 +296,16 @@
     });
 
     evtSource.onerror = function() {};
+
+    // Confirm before clearing
+    var clearForm = document.getElementById('clearForm');
+    if (clearForm) {
+      clearForm.addEventListener('submit', function(e) {
+        if (!confirm('Borrar TODOS los archivos descargados?')) {
+          e.preventDefault();
+        }
+      });
+    }
   });
 </script>
 

@@ -25,22 +25,50 @@ function isPdfFile(filePath) {
 
 // --- DESCARGA DASHBOARD ---
 router.get('/descarga', (req, res) => {
-  // List downloaded files from descargas/
+  // Collect PDFs recursively (may be in referencia subfolders)
   let files = [];
-  if (fs.existsSync(DOWNLOAD_DIR)) {
-    files = fs.readdirSync(DOWNLOAD_DIR)
-      .filter(f => f.endsWith('.pdf'))
-      .map(f => {
-        const filePath = path.join(DOWNLOAD_DIR, f);
+  function scanDir(dir, prefix) {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        scanDir(path.join(dir, entry.name), entry.name);
+      } else if (entry.name.endsWith('.pdf')) {
+        const filePath = path.join(dir, entry.name);
         const stat = fs.statSync(filePath);
-        return {
-          name: f,
+        const codigo = entry.name.replace('.pdf', '');
+        files.push({
+          name: entry.name,
+          relativePath: prefix ? `${prefix}/${entry.name}` : entry.name,
+          codigo,
+          folder: prefix || null,
           size: stat.size,
           date: stat.mtime,
-        };
-      })
-      .sort((a, b) => b.date - a.date);
+        });
+      }
+    }
   }
+  scanDir(DOWNLOAD_DIR, '');
+
+  // Enrich with metadata from DB
+  const metaStmt = db.prepare('SELECT * FROM scraper_downloads WHERE codigo = ?');
+  for (const file of files) {
+    const meta = metaStmt.get(file.codigo);
+    if (meta) {
+      file.referencia = meta.referencia || '';
+      file.registro = meta.registro || '';
+      file.solicitante = meta.solicitante || '';
+      file.fechaCreacion = meta.fecha_creacion || '';
+      file.importe = meta.importe || '';
+    }
+  }
+
+  files.sort((a, b) => b.date - a.date);
+
+  // Filter support
+  const filterRef = req.query.ref || '';
+  const filterReg = req.query.reg || '';
+  if (filterRef) files = files.filter(f => (f.referencia || '').toLowerCase().includes(filterRef.toLowerCase()));
+  if (filterReg) files = files.filter(f => (f.registro || '').toLowerCase().includes(filterReg.toLowerCase()));
 
   const flash = req.session.flash;
   req.session.flash = null;
@@ -53,12 +81,21 @@ router.get('/descarga', (req, res) => {
     files,
     flash,
     scraperStatus,
+    filterRef,
+    filterReg,
   });
 });
 
 // --- START SCRAPER ---
 router.post('/descarga/start', (req, res) => {
-  const started = scraper.startScraper();
+  const filters = {
+    referencia: req.body.referencia || '',
+    tipoSolicitud: req.body.tipo_solicitud || '',
+    usuario: req.body.usuario || '',
+    fechaDesde: req.body.fecha_desde || '',
+    fechaHasta: req.body.fecha_hasta || '',
+  };
+  const started = scraper.startScraper(filters);
   req.session.flash = started
     ? { type: 'info', message: 'Scraper iniciado. Se abrirá una ventana de Chrome.' }
     : { type: 'warning', message: 'El scraper ya está en ejecución.' };
@@ -107,7 +144,8 @@ router.post('/descarga/import', (req, res) => {
   let skipped = 0;
 
   for (const name of names) {
-    const sourcePath = path.join(DOWNLOAD_DIR, name);
+    // name can be "file.pdf" or "subfolder/file.pdf"
+    const sourcePath = path.join(DOWNLOAD_DIR, ...name.split('/'));
 
     if (!fs.existsSync(sourcePath) || !isPdfFile(sourcePath)) {
       skipped++;
@@ -128,6 +166,29 @@ router.post('/descarga/import', (req, res) => {
   if (imported > 0) message += ' Ve a la pestaña Análisis para procesarlos.';
 
   req.session.flash = { type: imported > 0 ? 'success' : 'warning', message };
+  res.redirect('/descarga');
+});
+
+// --- CLEAR ALL DOWNLOADED FILES ---
+router.post('/descarga/clear', (req, res) => {
+  if (fs.existsSync(DOWNLOAD_DIR)) {
+    const entries = fs.readdirSync(DOWNLOAD_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(DOWNLOAD_DIR, entry.name);
+      if (entry.isDirectory()) {
+        fs.rmSync(fullPath, { recursive: true, force: true });
+      } else if (entry.name !== '.downloaded.json') {
+        fs.unlinkSync(fullPath);
+      }
+    }
+  }
+  // Clear download log so scraper re-downloads
+  const logFile = path.join(DOWNLOAD_DIR, '.downloaded.json');
+  if (fs.existsSync(logFile)) fs.unlinkSync(logFile);
+  // Clear scraper_downloads table
+  db.prepare('DELETE FROM scraper_downloads').run();
+
+  req.session.flash = { type: 'success', message: 'Todos los archivos descargados han sido borrados.' };
   res.redirect('/descarga');
 });
 
